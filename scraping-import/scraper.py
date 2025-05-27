@@ -4,25 +4,14 @@ from selenium.webdriver.edge.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import mysql.connector
 import time
 import random
-from datetime import datetime
 
 # Update with your current timestamp and username
-CURRENT_TIMESTAMP = "2025-05-07 14:37:51"
-CURRENT_USER = "oumaima"
+CURRENT_TIMESTAMP = "2025-05-26 23:39:12"
+CURRENT_USER = "souhail4real"
 
-
-# Database configuration
-DB_CONFIG = {
-    "host": "localhost",
-    "database": "freelancima",
-    "user": "root",
-    "password": ""
-}
-
-# Your existing categories dictionary remains the same
+# Your existing categories dictionary
 categories = {
     'web-development': ['web', 'developer', 'development', 'javascript', 'react', 'vue', 'angular', 'node', 'php', 'laravel', 'html', 'css', 'bootstrap', 'tailwind', 'wordpress', 'shopify', 'frontend', 'backend', 'full stack'],
     'mobile-development': ['mobile', 'android', 'ios', 'flutter', 'react native', 'kotlin', 'swift', 'dart', 'xamarin', 'ionic', 'app development', 'pwa', 'mobile app'],
@@ -30,16 +19,6 @@ categories = {
     'cybersecurity': ['security', 'cyber', 'ethical hacking', 'penetration testing', 'pen test', 'infosec', 'firewall', 'cryptography', 'encryption', 'vulnerability', 'security audit', 'siem', 'compliance', 'gdpr'],
     'cloud-devops': ['cloud', 'aws', 'azure', 'gcp', 'google cloud', 'devops', 'docker', 'kubernetes', 'jenkins', 'ci/cd', 'terraform', 'ansible', 'infrastructure', 'iaas', 'paas', 'saas', 'microservices', 'serverless']
 }
-
-def create_db_connection():
-    """Create and return a database connection"""
-    try:
-        connection = mysql.connector.connect(**DB_CONFIG, autocommit=False)
-        print("✅ Database connection established")
-        return connection
-    except mysql.connector.Error as err:
-        print(f"❌ Database connection failed: {err}")
-        return None
 
 def setup_edge_driver():
     """Setup and return Edge WebDriver with proper options"""
@@ -57,34 +36,23 @@ def setup_edge_driver():
     
     return driver
 
-def scrape_and_import():
-    """Main function to scrape data and import directly to database"""
-    connection = None
+def scrape_freelancers(existing_links=None):
+    """Function to scrape freelancers data from PeoplePerHour"""
+    if existing_links is None:
+        existing_links = set()
+        
     driver = None
-    cursor = None
+    scraped_data = []
+    stats = {"added": 0, "skipped": 0}
     
     try:
-        # Initialize database connection
-        connection = create_db_connection()
-        if not connection:
-            return False
-        
-        # Initialize cursor
-        cursor = connection.cursor()
-        
-        # Get existing profile links
-        cursor.execute("SELECT profile_link FROM freelancers")
-        existing_links = {row[0] for row in cursor.fetchall()}
-        
         # Initialize Selenium
         driver = setup_edge_driver()
-        added_count = 0
-        skipped_count = 0
         
         # Loop through pages
-        for page in range(1,30):
+        for page in range(1, 3):
             try:
-                print(f"\n📄 Processing page {page} of 39...")
+                print(f"\n📄 Processing page {page} of 30...")
                 url = f"https://www.peopleperhour.com/services/technology-programming/website-development?page={page}"
                 
                 driver.get(url)
@@ -108,7 +76,7 @@ def scrape_and_import():
                         
                         if profile_link in existing_links:
                             print(f"⏩ Skipping existing freelancer: {username}")
-                            skipped_count += 1
+                            stats["skipped"] += 1
                             continue
                         
                         # Extract other data
@@ -136,30 +104,18 @@ def scrape_and_import():
                         driver.close()
                         driver.switch_to.window(driver.window_handles[0])
                         
-                        # Calculate price and category
-                        price = str(max(15, min(50, int(25 * (1 + float(rating) / 10 + 
-                                 (int(reviews) if reviews.isdigit() else 0) / 200)))))
-                        category = determine_category(description)
+                        # Append data to scraped_data list
+                        scraped_data.append({
+                            "username": username,
+                            "profile_link": profile_link,
+                            "profile_image": profile_image,
+                            "rating": rating,
+                            "reviews": reviews,
+                            "description": description
+                        })
                         
-                        # Insert into database
-                        cursor.execute("""
-                            INSERT INTO freelancers 
-                            (username, profile_link, profile_image, rating, reviews, 
-                             short_description, price, category, created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            username, profile_link, profile_image, float(rating),
-                            int(reviews) if reviews.isdigit() else 0,
-                            description, float(price), category, CURRENT_TIMESTAMP
-                        ))
-                        
-                        existing_links.add(profile_link)
-                        added_count += 1
-                        print(f"✅ Added: {username} ({category})")
-                        
-                        # Commit every 5 freelancers
-                        if added_count % 5 == 0:
-                            connection.commit()
+                        stats["added"] += 1
+                        print(f"✅ Scraped: {username}")
                         
                     except Exception as e:
                         print(f"⚠️ Error processing freelancer: {str(e)}")
@@ -171,39 +127,19 @@ def scrape_and_import():
             except Exception as e:
                 print(f"⚠️ Error processing page {page}: {str(e)}")
                 continue
-            
-            # Commit at the end of each page
-            connection.commit()
         
-        # Insert final metadata
-        cursor.execute("""
-            INSERT INTO metadata (last_updated, updated_by, record_count)
-            VALUES (%s, %s, %s)
-        """, (CURRENT_TIMESTAMP, CURRENT_USER, added_count))
-        
-        connection.commit()
-        print(f"\n✅ Successfully processed {added_count + skipped_count} freelancers:")
-        print(f"   - {added_count} new freelancers added")
-        print(f"   - {skipped_count} existing freelancers skipped")
-        
-        return True
+        return scraped_data, stats
         
     except Exception as e:
-        if connection:
-            connection.rollback()
-        print(f"\n❌ Error during scraping and import: {str(e)}")
-        return False
+        print(f"\n❌ Error during scraping: {str(e)}")
+        return scraped_data, stats
         
     finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
         if driver:
             driver.quit()
 
 def determine_category(description):
-    """Your existing determine_category function"""
+    """Determine category based on description"""
     description = description.lower()
     category_matches = {category: sum(1 for keyword in keywords if keyword in description) 
                        for category, keywords in categories.items()}
@@ -215,12 +151,27 @@ def determine_category(description):
     return 'web-development'
 
 if __name__ == "__main__":
-    print("=== FreeLanci.ma Scraper and Importer ===")
+    print("=== FreeLanci.ma Scraper ===")
     print(f"Current user: {CURRENT_USER}")
     print(f"Timestamp: {CURRENT_TIMESTAMP}")
     print("=" * 50)
     
-    success = scrape_and_import()
+    # This code will only run if you execute this file directly
+    import db_operations
+    
+    # Get existing links from database
+    connection = db_operations.create_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT profile_link FROM freelancers")
+    existing_links = {row[0] for row in cursor.fetchall()}
+    cursor.close()
+    connection.close()
+    
+    # Scrape freelancers
+    scraped_data, stats = scrape_freelancers(existing_links)
+    
+    # Import to database
+    success = db_operations.import_to_database(scraped_data, stats)
     
     if success:
         print("\n✅ Scraping and import completed successfully!")
@@ -228,10 +179,3 @@ if __name__ == "__main__":
         print("\n❌ Process failed. Please check the logs for details.")
     
     print("\nScript execution completed.")
-    
-    
-    
-    
-    
-    
-    

@@ -275,11 +275,8 @@ session_start();
                 </div>
             </div>
         </div>
-<<<<<<< HEAD:index.php
+
         <script src="script.js"></script>
-=======
-        <script  src="script.js"></script>
->>>>>>> 97640fd57aee84b9f874c49e6c08af03c853a482:index.html
     </footer>
 
     <!-- Mobile Menu JavaScript -->

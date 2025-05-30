@@ -9,8 +9,8 @@ define('DB_NAME', 'freelancima');
 define('DB_USER', 'root');
 define('DB_PASSWORD', '');
 
-// Current timestamp and user
-$CURRENT_TIMESTAMP = "2025-05-07 12:46:36";
+// Current timestamp and user - UPDATED to current values
+$CURRENT_TIMESTAMP = "2025-05-28 02:53:27";
 $CURRENT_USER = "souhail4real";
 
 /**
@@ -33,14 +33,14 @@ function createConnection() {
  * @return array Freelancers grouped by category
  */
 function getAllFreelancers($conn) {
-    // SQL query to get all freelancers
+    // UPDATED: SQL query to use the latest_100_freelancers_view
     $sql = "
     SELECT 
         id, username, profile_link, profile_image, rating, reviews, 
         short_description, price, category 
     FROM 
-        freelancers 
-    ORDER BY category ASC, id DESC";
+        latest_100_freelancers_view 
+    ORDER BY category ASC, created_at DESC";
     
     $stmt = $conn->prepare($sql);
     $stmt->execute();
@@ -72,16 +72,16 @@ function getAllFreelancers($conn) {
  * @return array Freelancers in the specified category
  */
 function getFreelancersByCategory($conn, $category) {
-    // SQL query with parameterized query for category
+    // UPDATED: SQL query to use the latest_100_freelancers_view
     $sql = "
     SELECT 
         id, username, profile_link, profile_image, rating, reviews, 
         short_description, price, category 
     FROM 
-        freelancers 
+        latest_100_freelancers_view 
     WHERE 
         category = :category
-    ORDER BY id DESC";
+    ORDER BY created_at DESC";
     
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':category', $category, PDO::PARAM_STR);
@@ -105,11 +105,11 @@ function searchFreelancers($conn, $keyword) {
         id, username, profile_link, profile_image, rating, reviews, 
         short_description, price, category 
     FROM 
-        freelancers 
+        latest_100_freelancers_view
     WHERE 
         username LIKE :keyword OR 
         short_description LIKE :keyword
-    ORDER BY category ASC, id DESC";
+    ORDER BY category ASC, created_at DESC";
     
     $stmt = $conn->prepare($sql);
     $searchTerm = '%' . $keyword . '%';
@@ -169,6 +169,29 @@ function getMetadata($conn) {
     ];
 }
 
+/**
+ * New function: Get the latest added freelancers across all categories
+ * @param PDO $conn Database connection
+ * @param int $limit Number of freelancers to return (default 10)
+ * @return array Latest freelancers
+ */
+function getLatestFreelancers($conn, $limit = 10) {
+    $sql = "
+    SELECT 
+        id, username, profile_link, profile_image, rating, reviews, 
+        short_description, price, category, created_at
+    FROM 
+        latest_100_freelancers_view
+    ORDER BY created_at DESC
+    LIMIT :limit";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Main execution
 try {
     $conn = createConnection();
@@ -180,6 +203,7 @@ try {
     $action = isset($_GET['action']) ? $_GET['action'] : 'all';
     $category = isset($_GET['category']) ? $_GET['category'] : '';
     $search = isset($_GET['search']) ? $_GET['search'] : '';
+    $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 10;
     
     // Get metadata
     $metadata = getMetadata($conn);
@@ -192,6 +216,15 @@ try {
         case 'search':
             $categories = searchFreelancers($conn, $search);
             break;
+        case 'latest':
+            // NEW action to get the latest freelancers
+            $latestFreelancers = getLatestFreelancers($conn, $limit);
+            $response = [
+                'metadata' => $metadata,
+                'latest_freelancers' => $latestFreelancers
+            ];
+            echo json_encode($response);
+            exit; // Exit early as we're using a different response format
         default:
             $categories = getAllFreelancers($conn);
             break;

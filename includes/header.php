@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../api/config.php';
 
 // Define a base URL that points to the root of your project
-$base_url = "/freelancima - Copie";
+$base_url = "/freelanciv2";
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -1,6 +1,13 @@
 <?php
 // Start the session
 session_start();
+
+// Check if the user is logged in
+if (!isset($_SESSION['user_id'])) {
+    // Redirect to login page
+    header("Location: auth/login.php");
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,6 +32,11 @@ session_start();
             </div>
 
             <div class="flex items-center space-x-4">
+                <!-- Analytics Button -->
+                <a href="statistics.php" class="hidden md:flex items-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">
+                    <i class="fas fa-chart-line mr-2"></i>Analytics
+                </a>
+                
                 <!-- Auth Navigation -->
                 <div class="hidden md:flex items-center space-x-4">
                     <?php if(isset($_SESSION['user_id'])): ?>
@@ -329,6 +341,17 @@ session_start();
                             <div class="border-b border-gray-200 pb-4 mb-4 flex flex-col space-y-2">
                                 <a href="auth/login.php" class="block w-full text-center text-gray-700 hover:text-green-600 py-2 transition">Login</a>
                                 <a href="auth/register.php" class="block w-full text-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition">Register</a>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add analytics button to mobile menu when logged in
+                    if (isLoggedIn) {
+                        menuItems += `
+                            <div class="border-b border-gray-200 pb-4 mb-4">
+                                <a href="freelanciv2/statistics.php" class="block w-full text-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">
+                                    <i class="fas fa-chart-line mr-2"></i>Analytics
+                                </a>
                             </div>
                         `;
                     }
